@@ -1,0 +1,107 @@
+[
+  {
+    "note_id": "N01",
+    "title": "Introduction to Light",
+    "topic_tag": "Introduction to Light",
+    "section": "1.1",
+    "content": "Light is a form of energy that enables us to see objects. It travels in straight lines in a homogeneous medium. This property is called rectilinear propagation of light. The speed of light in vacuum is approximately 3 × 10^8 m/s. When light falls on an object, it may be reflected, absorbed, or transmitted. Objects that emit their own light are called luminous objects (for example, the Sun and a lit bulb). Objects that do not emit light but become visible when light from a luminous source falls on them and reaches our eyes are called non-luminous objects (for example, the Moon, a book, or a table)."
+  },
+  {
+    "note_id": "N02",
+    "title": "Reflection of Light",
+    "topic_tag": "Reflection of Light",
+    "section": "1.2",
+    "content": "Reflection of light is the bouncing back of light when it strikes a smooth surface such as a mirror. The ray that strikes the surface is called the incident ray. The ray that bounces back is called the reflected ray. The perpendicular drawn at the point of incidence on the reflecting surface is called the normal. The angle between the incident ray and the normal is the angle of incidence (i). The angle between the reflected ray and the normal is the angle of reflection (r). A highly polished surface reflects most of the light falling on it and forms a clear image."
+  },
+  {
+    "note_id": "N03",
+    "title": "Laws of Reflection",
+    "topic_tag": "Laws of Reflection",
+    "section": "1.3",
+    "content": "There are two laws of reflection of light. First law: The incident ray, the reflected ray, and the normal at the point of incidence all lie in the same plane. Second law: The angle of incidence is equal to the angle of reflection, that is, i = r. These laws are valid for all reflecting surfaces, whether plane or spherical. Regular reflection occurs from smooth surfaces and produces clear images. Diffused (irregular) reflection occurs from rough surfaces and helps us see objects from different directions, but does not form clear images."
+  },
+  {
+    "note_id": "N04",
+    "title": "Spherical Mirrors",
+    "topic_tag": "Spherical Mirrors",
+    "section": "2.1",
+    "content": "A spherical mirror is a mirror whose reflecting surface is part of a hollow sphere. If the reflecting surface is curved inward (towards the centre of the sphere), it is a concave mirror. If the reflecting surface is curved outward, it is a convex mirror. The centre of the hollow sphere of which the mirror is a part is called the centre of curvature (C). The centre of the reflecting surface of the mirror is called the pole (P). The straight line joining the centre of curvature and the pole is the principal axis. The radius of curvature (R) is the distance between the centre of curvature and the pole."
+  },
+  {
+    "note_id": "N05",
+    "title": "Concave and Convex Mirrors",
+    "topic_tag": "Concave and Convex Mirrors",
+    "section": "2.2",
+    "content": "A concave mirror converges parallel rays of light to a point after reflection and is therefore also called a converging mirror. It can form real and inverted images or virtual and erect images depending on the object position. Uses of concave mirrors include shaving mirrors, dentist mirrors, and reflectors in torches and headlights. A convex mirror diverges parallel rays of light after reflection and is called a diverging mirror. It always forms a virtual, erect, and diminished image for a real object. Convex mirrors are used as rear-view mirrors in vehicles because they give a wider field of view."
+  },
+  {
+    "note_id": "N06",
+    "title": "Important Terms Related to Mirrors",
+    "topic_tag": "Important Terms Related to Mirrors",
+    "section": "2.3",
+    "content": "Focus (F) of a spherical mirror is the point on the principal axis where rays parallel to the principal axis meet (or appear to meet) after reflection. For a concave mirror, the focus is real; for a convex mirror, the focus is virtual. Focal length (f) is the distance between the pole and the principal focus. For spherical mirrors of small aperture, the relationship between radius of curvature and focal length is R = 2f, or f = R/2. Aperture is the diameter of the reflecting surface of the mirror. Object distance (u) is measured from the pole to the object. Image distance (v) is measured from the pole to the image."
+  },
+  {
+    "note_id": "N07",
+    "title": "Mirror Formula",
+    "topic_tag": "Mirror Formula",
+    "section": "2.4",
+    "content": "The mirror formula relates object distance (u), image distance (v), and focal length (f) of a spherical mirror: 1/v + 1/u = 1/f. The New Cartesian sign convention is used: (1) Object is always placed to the left of the mirror. (2) Distances measured in the direction of incident light are positive. (3) Distances measured opposite to the direction of incident light are negative. (4) Heights measured upwards and perpendicular to the principal axis are positive; heights measured downwards are negative. For a concave mirror, f is negative. For a convex mirror, f is positive. Always substitute values with correct signs while solving numerical problems."
+  },
+  {
+    "note_id": "N08",
+    "title": "Magnification",
+    "topic_tag": "Magnification",
+    "section": "2.5",
+    "content": "Magnification (m) produced by a spherical mirror is the ratio of the height of the image (h') to the height of the object (h): m = h'/h. It is also related to object and image distances as m = −v/u. A positive magnification means the image is virtual and erect. A negative magnification means the image is real and inverted. If |m| > 1, the image is enlarged. If |m| = 1, the image is the same size as the object. If |m| < 1, the image is diminished. Magnification is a dimensionless quantity and has no unit."
+  },
+  {
+    "note_id": "N09",
+    "title": "Refraction of Light",
+    "topic_tag": "Refraction of Light",
+    "section": "3.1",
+    "content": "Refraction of light is the bending of light when it travels from one transparent medium to another of different optical density. The change in speed of light in different media causes this bending. When light travels from a rarer medium to a denser medium (for example, air to water or air to glass), it bends towards the normal. When light travels from a denser medium to a rarer medium (for example, glass to air), it bends away from the normal. Everyday examples of refraction include a straw appearing bent in a glass of water, the bottom of a pool looking raised, and stars twinkling."
+  },
+  {
+    "note_id": "N10",
+    "title": "Laws of Refraction",
+    "topic_tag": "Laws of Refraction",
+    "section": "3.2",
+    "content": "There are two laws of refraction of light. First law: The incident ray, the refracted ray, and the normal at the point of incidence all lie in the same plane. Second law (Snell's law): The ratio of the sine of the angle of incidence to the sine of the angle of refraction is constant for a given pair of media. Mathematically, sin i / sin r = constant = n21, where n21 is the refractive index of the second medium with respect to the first. This constant depends on the pair of media and on the colour (wavelength) of light."
+  },
+  {
+    "note_id": "N11",
+    "title": "Refractive Index",
+    "topic_tag": "Refractive Index",
+    "section": "3.3",
+    "content": "The absolute refractive index (n) of a medium is the ratio of the speed of light in vacuum (c) to the speed of light in that medium (v): n = c/v. Since light travels fastest in vacuum, n is always greater than or equal to 1. For air, n ≈ 1.0003 (taken as 1 for most school problems). For water, n ≈ 1.33. For glass, n ≈ 1.5. The relative refractive index of medium 2 with respect to medium 1 is n21 = n2/n1 = v1/v2. A medium with a higher refractive index is optically denser. Optical density is different from mass density."
+  },
+  {
+    "note_id": "N12",
+    "title": "Refraction Through a Glass Slab",
+    "topic_tag": "Refraction Through a Glass Slab",
+    "section": "3.4",
+    "content": "When a ray of light passes through a rectangular glass slab, it undergoes refraction twice: once at the air–glass interface and again at the glass–air interface. At the first surface, light bends towards the normal. At the second surface, light bends away from the normal. The emergent ray is parallel to the incident ray but is laterally shifted. Lateral shift is the perpendicular distance between the direction of the incident ray and the emergent ray. Lateral shift increases with the thickness of the slab and the refractive index of the glass, and also depends on the angle of incidence."
+  },
+  {
+    "note_id": "N13",
+    "title": "Lenses and Their Types",
+    "topic_tag": "Lenses and Their Types",
+    "section": "4.1",
+    "content": "A lens is a transparent medium bounded by two surfaces, of which at least one is spherical. A convex (converging) lens is thicker at the centre than at the edges. It converges parallel rays of light to a real focus. A concave (diverging) lens is thinner at the centre than at the edges. It diverges parallel rays of light so that they appear to come from a virtual focus. Important terms for lenses include optical centre (O), principal axis, principal focus (F), focal length (f), and centre of curvature. Convex lenses are used in magnifying glasses, cameras, and spectacles for hypermetropia. Concave lenses are used in spectacles for myopia."
+  },
+  {
+    "note_id": "N14",
+    "title": "Lens Formula and Magnification",
+    "topic_tag": "Lens Formula and Magnification",
+    "section": "4.2",
+    "content": "The lens formula relates object distance (u), image distance (v), and focal length (f): 1/v − 1/u = 1/f. The same New Cartesian sign convention used for mirrors is applied carefully for lenses. For a convex lens, f is positive. For a concave lens, f is negative. Magnification produced by a lens is m = h'/h = v/u. A positive m indicates a virtual and erect image. A negative m indicates a real and inverted image. Power of a lens (P) is the reciprocal of its focal length in metres: P = 1/f. The SI unit of power is dioptre (D). A convex lens has positive power; a concave lens has negative power."
+  },
+  {
+    "note_id": "N15",
+    "title": "Common Mistakes and Important Exam Points",
+    "topic_tag": "Common Mistakes and Important Exam Points",
+    "section": "5.1",
+    "content": "Common mistakes in this unit include forgetting sign conventions in numerical problems, confusing real and virtual images, mixing up mirror and lens formulae (mirror: 1/v + 1/u = 1/f; lens: 1/v − 1/u = 1/f), and stating that convex mirrors form real images (they do not for real objects). Important exam points: (1) Always draw neat ray diagrams with arrows. (2) Write both laws of reflection and refraction completely. (3) Remember R = 2f for spherical mirrors. (4) State uses of concave and convex mirrors and lenses with reasons. (5) Differentiate between optical density and mass density. (6) For magnification, check the sign to decide whether the image is erect or inverted."
+  }
+]
