@@ -24,23 +24,18 @@ TutorRAG is a working Class 10 Science tutoring web app for the unit **Light –
 ```text
 TutorRAG/
 ├── app.py                   # ASGI entry: st.App → streamlit_app.py
-├── streamlit_app.py         # Streamlit UI (profile, tutor, quiz)
+├── streamlit_app.py         # Streamlit UI / Streamlit Cloud main file
+├── runtime.txt              # Streamlit Cloud Python pin
 ├── requirements.txt
-├── README.md
-├── .gitignore
-├── .env.example
+├── .streamlit/config.toml
+├── .streamlit/secrets.toml.example
+├── vendor/pyarrow/          # lean pyarrow stub for size-constrained hosts
+├── docs/STREAMLIT_CLOUD.md
 ├── knowledge_base/notes.json
 ├── data/questions.csv
 ├── private/                 # local-only; gitignored (not shipped)
 ├── rag/
-│   ├── loader.py
-│   ├── chunking.py
-│   ├── retrieval.py
-│   └── tutor.py
 ├── utils/
-│   ├── prompts.py
-│   ├── validation.py
-│   └── quiz.py
 ├── screenshots/
 └── tests/
 ```
@@ -65,26 +60,21 @@ Deployment note: `app.py` exports Streamlit’s official ASGI `app = st.App("str
 
 Public-host secrets: set `GROQ_API_KEY`, `QUIZ_ANSWER_BANK`, `APP_ACCESS_CODE`, and `CAPTCHA_PEPPER` (required for the Groq AI path across workers). Rate limits and Groq budgets are process-local unless the host shares persistent storage.
 
-## Streamlit Community Cloud deployment
+## Deployment
 
-1. Push this repository to GitHub.
-2. Go to [Share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
-3. Click **New app**.
-4. Select this repository, branch `main` (or your feature branch), and main file `streamlit_app.py` (or deploy via Cursor using ASGI `app:app`).
-5. Under **Advanced settings → Secrets**, add:
+**Recommended: Streamlit Community Cloud** (supports Streamlit WebSockets).
 
-```toml
-GROQ_API_KEY = "your_groq_api_key"
-GROQ_MODEL = "llama-3.3-70b-versatile"
-QUIZ_ANSWER_BANK = "{\"Q01\":{\"correct_answer\":\"A\",\"explanation\":\"...\"}}"
-APP_ACCESS_CODE = "your-class-access-code"
-GROQ_DAILY_LIMIT = "40"
-GROQ_MONTHLY_LIMIT = "400"
-```
+Cursor Apps (`*.apps.grok.bot`) can host the build, but Streamlit’s UI WebSocket
+(`/_stcore/stream`) is not available there, so the page stays on a loading
+skeleton. Prefer Streamlit Cloud for a working classroom link.
 
-See also `docs/QUIZ_ANSWER_BANK.md`.
+Quick path:
 
-6. Deploy and open the public URL. Learners unlock with the class access code, then use a short security check before AI answers.
+1. [share.streamlit.io](https://share.streamlit.io) → **New app**
+2. Repo + branch, **Main file:** `streamlit_app.py`
+3. Secrets from `.streamlit/secrets.toml.example` (include `CAPTCHA_PEPPER`)
+
+Full steps: [docs/STREAMLIT_CLOUD.md](docs/STREAMLIT_CLOUD.md). Answer-bank format: [docs/QUIZ_ANSWER_BANK.md](docs/QUIZ_ANSWER_BANK.md).
 
 ## Tests
 
