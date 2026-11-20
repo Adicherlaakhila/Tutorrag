@@ -28,7 +28,8 @@ TutorRAG/
 ├── .gitignore
 ├── .env.example
 ├── knowledge_base/notes.json
-├── data/question_bank.csv
+├── data/questions.csv
+├── private/answers.enc
 ├── rag/
 │   ├── loader.py
 │   ├── chunking.py

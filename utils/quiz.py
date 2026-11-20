@@ -1,4 +1,4 @@
-"""Practice quiz helpers backed by the CSV question bank."""
+"""Practice quiz helpers with server-side answer lookup."""
 
 from __future__ import annotations
 
@@ -7,16 +7,19 @@ from typing import Any
 
 import pandas as pd
 
+from utils.answer_key import ANSWER_KEY
 
-DEFAULT_QUESTION_BANK = (
-    Path(__file__).resolve().parent.parent / "data" / "question_bank.csv"
+
+DEFAULT_QUESTIONS_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "questions.csv"
 )
 
 
 def load_question_bank(path: Path | str | None = None) -> pd.DataFrame:
-    csv_path = Path(path) if path else DEFAULT_QUESTION_BANK
+    """Load the public question bank (no answer key columns)."""
+    csv_path = Path(path) if path else DEFAULT_QUESTIONS_PATH
     if not csv_path.exists():
-        raise FileNotFoundError(f"Question bank not found: {csv_path}")
+        raise FileNotFoundError("Question bank is unavailable.")
 
     df = pd.read_csv(csv_path)
     required = {
@@ -28,17 +31,20 @@ def load_question_bank(path: Path | str | None = None) -> pd.DataFrame:
         "option_b",
         "option_c",
         "option_d",
-        "correct_answer",
-        "explanation",
     }
     missing = required - set(df.columns)
     if missing:
-        raise ValueError(f"Question bank missing columns: {sorted(missing)}")
+        raise ValueError("Question bank is missing required columns.")
+
+    # Refuse to load files that still embed plaintext answer keys.
+    forbidden = {"correct_answer", "explanation"} & set(df.columns)
+    if forbidden:
+        raise ValueError("Public question bank must not include answer key columns.")
 
     df = df.copy()
     df["difficulty"] = df["difficulty"].astype(str).str.strip()
     df["topic"] = df["topic"].astype(str).str.strip()
-    df["correct_answer"] = df["correct_answer"].astype(str).str.strip().str.upper()
+    df["question_id"] = df["question_id"].astype(str).str.strip()
     return df
 
 
@@ -70,9 +76,12 @@ def select_quiz_questions(
     """
     Select exactly `count` random questions matching topic and difficulty.
 
-    Returns (questions, error_message).
+    Returned question objects intentionally omit correct answers/explanations.
+    Grading resolves those server-side from the private answer key.
     """
     filtered = filter_questions(df, topic=topic, difficulty=difficulty)
+    # Only keep items that exist in the server answer key.
+    filtered = filtered[filtered["question_id"].isin(ANSWER_KEY.keys())]
     if len(filtered) < count:
         label_topic = topic or "any topic"
         label_level = difficulty or "any level"
@@ -97,8 +106,6 @@ def select_quiz_questions(
                     "C": str(row["option_c"]),
                     "D": str(row["option_d"]),
                 },
-                "correct_answer": str(row["correct_answer"]).upper(),
-                "explanation": str(row["explanation"]),
             }
         )
     return questions, None
@@ -108,13 +115,29 @@ def grade_quiz(
     questions: list[dict[str, Any]],
     answers: dict[str, str],
 ) -> dict[str, Any]:
-    """Grade submitted answers and build per-question feedback."""
+    """Grade submitted answers using the server-side answer key only."""
     details = []
     score = 0
     for question in questions:
         qid = question["question_id"]
         selected = str(answers.get(qid, "")).strip().upper()
-        correct = question["correct_answer"]
+        key = ANSWER_KEY.get(qid)
+        if not key:
+            details.append(
+                {
+                    "question_id": qid,
+                    "question": question["question"],
+                    "selected": selected or None,
+                    "correct_answer": None,
+                    "is_correct": False,
+                    "explanation": "Answer key unavailable for this question.",
+                    "options": question["options"],
+                }
+            )
+            continue
+
+        correct = str(key["correct_answer"]).upper()
+        explanation = str(key["explanation"])
         is_correct = selected == correct and selected in {"A", "B", "C", "D"}
         if is_correct:
             score += 1
@@ -125,7 +148,7 @@ def grade_quiz(
                 "selected": selected or None,
                 "correct_answer": correct,
                 "is_correct": is_correct,
-                "explanation": question["explanation"],
+                "explanation": explanation,
                 "options": question["options"],
             }
         )

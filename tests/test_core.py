@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -14,7 +13,9 @@ sys.path.insert(0, str(ROOT))
 from rag.chunking import notes_to_chunks
 from rag.loader import load_notes
 from rag.retrieval import TFIDFRetriever
+from utils.answer_key import ANSWER_KEY
 from utils.quiz import grade_quiz, load_question_bank, select_quiz_questions
+from utils.rate_limit import RateLimitConfig, RateLimiter
 from utils.validation import is_homework_request, validate_profile
 
 
@@ -77,15 +78,25 @@ def test_homework_detection():
     assert not is_homework_request("What is the mirror formula?")
 
 
-def test_question_bank_size_and_quiz():
+def test_question_bank_has_no_answer_columns():
     df = load_question_bank()
     assert 30 <= len(df) <= 50
+    assert "correct_answer" not in df.columns
+    assert "explanation" not in df.columns
+    assert len(ANSWER_KEY) >= len(df)
+
+
+def test_question_bank_size_and_quiz():
+    df = load_question_bank()
     questions, error = select_quiz_questions(
         df, topic=None, difficulty="Beginner", count=5
     )
     assert error is None
     assert questions is not None
     assert len(questions) == 5
+    for q in questions:
+        assert "correct_answer" not in q
+        assert "explanation" not in q
 
 
 def test_quiz_insufficient_questions_message():
@@ -96,38 +107,33 @@ def test_quiz_insufficient_questions_message():
         difficulty="Advanced",
         count=5,
     )
-    # There may or may not be enough Advanced questions for that topic.
     if questions is None:
         assert error is not None
         assert "Not enough questions" in error
 
 
-def test_quiz_grading():
+def test_quiz_grading_uses_server_answer_key():
     questions = [
         {
             "question_id": "Q01",
-            "question": "Sample?",
-            "correct_answer": "A",
-            "explanation": "Because A",
+            "question": "What is light?",
             "options": {"A": "a", "B": "b", "C": "c", "D": "d"},
         },
         {
             "question_id": "Q02",
-            "question": "Sample 2?",
-            "correct_answer": "B",
-            "explanation": "Because B",
+            "question": "Speed of light?",
             "options": {"A": "a", "B": "b", "C": "c", "D": "d"},
         },
     ]
     result = grade_quiz(questions, {"Q01": "A", "Q02": "C"})
     assert result["score"] == 1
     assert result["total"] == 2
+    assert result["details"][0]["is_correct"] is True
     assert result["details"][1]["is_correct"] is False
-    assert result["details"][1]["correct_answer"] == "B"
+    assert result["details"][1]["correct_answer"] == ANSWER_KEY["Q02"]["correct_answer"]
 
 
 def test_beginner_and_advanced_same_query_retrieve_same_sources():
-    """Retrieval is profile-independent; generation adapts later via prompts."""
     notes = load_notes()
     chunks = notes_to_chunks(notes)
     retriever = TFIDFRetriever(chunks)
@@ -153,10 +159,12 @@ def test_notes_fallback_adapts_level_and_cites():
     beginner = tutor.answer(
         "What is reflection of light?",
         {**base_profile, "level": "Beginner", "style": "Simple Explanation"},
+        client_key="test-beginner",
     )
     advanced = tutor.answer(
         "What is reflection of light?",
         {**base_profile, "level": "Advanced", "style": "Exam-Focused Answers"},
+        client_key="test-advanced",
     )
     assert beginner["is_relevant"] and advanced["is_relevant"]
     assert beginner["sources"] and "Source:" in beginner["sources"][0]["label"]
@@ -178,7 +186,43 @@ def test_homework_integrity_fallback():
             "topic": "Light – Reflection and Refraction",
             "style": "Simple Explanation",
         },
+        client_key="test-homework",
     )
     assert result["integrity_flag"] is True
     assert "ready-to-submit" in result["answer"].lower()
     assert "guided steps" in result["answer"].lower()
+
+
+def test_rate_limiter_blocks_excess_requests():
+    limiter = RateLimiter(
+        RateLimitConfig(
+            max_requests=3,
+            window_seconds=600,
+            global_max_requests=100,
+            global_window_seconds=600,
+        )
+    )
+    assert limiter.allow("user-a")[0] is True
+    assert limiter.allow("user-a")[0] is True
+    assert limiter.allow("user-a")[0] is True
+    allowed, message = limiter.allow("user-a")
+    assert allowed is False
+    assert message is not None
+    assert "limit" in message.lower()
+
+
+def test_privacy_safe_profile_redacts_nickname():
+    from rag.tutor import TutorService
+
+    tutor = TutorService()
+    safe = tutor._privacy_safe_profile(
+        {
+            "nickname": "Alex",
+            "level": "Beginner",
+            "subject": "Class 10 Science",
+            "topic": "Light – Reflection and Refraction",
+            "style": "Simple Explanation",
+        }
+    )
+    assert safe["nickname"] == "Learner"
+    assert safe["level"] == "Beginner"

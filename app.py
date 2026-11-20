@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import uuid
 from pathlib import Path
 
 import streamlit as st
@@ -22,10 +24,19 @@ from utils.validation import (
     validate_profile,
 )
 
+logger = logging.getLogger(__name__)
 
 ACADEMIC_INTEGRITY_NOTICE = (
     "TutorRAG is designed to help you learn. It provides explanations, hints, "
     "and guided steps. It does not complete graded assignments or write work for submission."
+)
+
+PRIVACY_NOTICE = (
+    "Privacy: When AI chat is available, your question, recent chat turns, and "
+    "non-identifying learning preferences (level, subject, topic, style) may be "
+    "sent to Groq’s third-party AI service to generate a reply. Your nickname is "
+    "not sent to Groq. Do not enter passwords, personal contact details, or "
+    "other sensitive information in chat. Quiz answers are checked on the server."
 )
 
 
@@ -40,10 +51,13 @@ def _init_state() -> None:
         "quiz_error": None,
         "tutor": None,
         "question_bank": None,
+        "client_key": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    if not st.session_state.client_key:
+        st.session_state.client_key = f"session-{uuid.uuid4().hex}"
 
 
 @st.cache_resource
@@ -58,6 +72,10 @@ def get_question_bank():
 
 def render_integrity_banner() -> None:
     st.info(f"📚 Academic Integrity: {ACADEMIC_INTEGRITY_NOTICE}")
+
+
+def render_privacy_banner() -> None:
+    st.caption(PRIVACY_NOTICE)
 
 
 def render_profile_form(sidebar: bool = False) -> None:
@@ -169,15 +187,19 @@ def render_chat() -> None:
                     question=prompt,
                     profile=profile,
                     history=st.session_state.messages[:-1],
+                    client_key=st.session_state.client_key,
                 )
-            except Exception as exc:  # noqa: BLE001 - show friendly UI error
-                st.error(f"Could not generate an answer: {exc}")
+            except Exception:
+                logger.exception("Chat answer failed")
+                st.error(
+                    "Sorry, I could not generate an answer right now. Please try again."
+                )
                 st.session_state.messages.append(
                     {
                         "role": "assistant",
                         "content": (
-                            "Sorry, I could not reach the tutoring service. "
-                            "Please check that GROQ_API_KEY is configured and try again."
+                            "Sorry, I could not generate an answer right now. "
+                            "Please try again in a moment."
                         ),
                         "sources": [],
                     }
@@ -210,13 +232,13 @@ def render_quiz() -> None:
 
     try:
         bank = get_question_bank()
-    except Exception as exc:  # noqa: BLE001
-        st.error(f"Could not load question bank: {exc}")
+    except Exception:
+        logger.exception("Question bank load failed")
+        st.error("Could not load the practice quiz right now. Please try again later.")
         return
 
     topics = ["(All topics in unit)"] + available_topics(bank)
     default_topic = profile.get("topic", DEFAULT_TOPIC)
-    # Map broad unit topic to "all topics" filter by default.
     topic_index = 0
     for idx, topic_name in enumerate(topics):
         if topic_name.casefold() == str(default_topic).casefold():
@@ -333,6 +355,7 @@ def main() -> None:
         "Ask doubts, get cited explanations from course notes, and practise with quizzes."
     )
     render_integrity_banner()
+    render_privacy_banner()
 
     if st.session_state.profile:
         st.caption(f"Active profile: {profile_summary(st.session_state.profile)}")
@@ -353,18 +376,24 @@ def main() -> None:
             TutorRAG uses Retrieval-Augmented Generation (RAG):
             1. Loads local Class 10 Science notes
             2. Retrieves the top relevant note chunks with TF-IDF
-            3. Asks a Groq LLM to explain using those notes and your learner profile
+            3. Asks a Groq LLM to explain using those notes and your learning preferences
 
-            Knowledge base folder: `knowledge_base/`  
-            Question bank: `data/question_bank.csv`
+            ### Privacy
+            When AI chat is enabled, questions and learning preferences may be sent to
+            **Groq**, a third-party AI provider, to generate answers. Nicknames are not
+            sent to Groq. Practice-quiz answer keys are checked on the server and are not
+            included in the public question file.
+
+            ### Usage limits
+            Tutoring requests that use Groq are rate-limited to protect the service from abuse.
             """
         )
         notes_path = Path("knowledge_base/notes.json")
         if notes_path.exists():
             st.success("Knowledge base file found.")
-        bank_path = Path("data/question_bank.csv")
+        bank_path = Path("data/questions.csv")
         if bank_path.exists():
-            st.success("Question bank file found.")
+            st.success("Practice questions file found.")
 
 
 if __name__ == "__main__":

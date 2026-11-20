@@ -1,7 +1,8 @@
-"""Groq-backed tutoring service with RAG context."""
+"""Groq-backed tutoring service with RAG context and rate limiting."""
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -12,10 +13,11 @@ from rag.chunking import notes_to_chunks
 from rag.loader import load_notes
 from rag.retrieval import TFIDFRetriever
 from utils.prompts import SYSTEM_PROMPT, build_user_prompt
+from utils.rate_limit import GROQ_RATE_LIMITER
 from utils.validation import is_homework_request
 
+logger = logging.getLogger(__name__)
 
-# Prefer a currently supported Groq chat model; allow override via env.
 DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 
@@ -72,6 +74,16 @@ class TutorService:
                 seen.add(label)
         return sources
 
+    def _privacy_safe_profile(self, profile: dict[str, Any]) -> dict[str, Any]:
+        """Send minimal learner context to third-party LLM (no nickname)."""
+        return {
+            "nickname": "Learner",
+            "level": profile.get("level", "Beginner"),
+            "subject": profile.get("subject", "Class 10 Science"),
+            "topic": profile.get("topic", "Light – Reflection and Refraction"),
+            "style": profile.get("style", "Simple Explanation"),
+        }
+
     def _integrity_fallback(self, profile: dict[str, Any], chunks: list[dict[str, Any]]) -> str:
         level = profile.get("level", "Beginner")
         hint = ""
@@ -104,10 +116,11 @@ class TutorService:
         style = profile.get("style", "Simple Explanation")
         primary = chunks[0]
         citation = f"Source: {primary['citation']}"
+        display_name = profile.get("nickname", "learner")
 
         if level == "Beginner":
             body = (
-                f"Hi {profile.get('nickname', 'learner')}! Let's keep this simple.\n\n"
+                f"Hi {display_name}! Let's keep this simple.\n\n"
                 f"{primary['content']}\n\n"
                 "In short: focus on the main idea above and try explaining it in one or two sentences "
                 "using your own words."
@@ -144,6 +157,7 @@ class TutorService:
         question: str,
         profile: dict[str, Any],
         history: list[dict[str, str]] | None = None,
+        client_key: str | None = None,
     ) -> dict[str, Any]:
         question = (question or "").strip()
         if not question:
@@ -158,8 +172,6 @@ class TutorService:
         integrity_flag = is_homework_request(question)
         retrieval = self.retriever.retrieve(question, top_k=3)
 
-        # Hard out-of-syllabus short-circuit when relevance is low and
-        # the question is clearly not an integrity tutoring request.
         if not retrieval.is_relevant and not integrity_flag:
             return {
                 "answer": (
@@ -194,9 +206,22 @@ class TutorService:
                 "mode": "notes_fallback",
             }
 
+        allowed, limit_message = GROQ_RATE_LIMITER.allow(client_key or "anonymous")
+        if not allowed:
+            return {
+                "answer": limit_message
+                or "Please wait a moment before sending another tutoring request.",
+                "sources": sources,
+                "is_relevant": retrieval.is_relevant,
+                "integrity_flag": integrity_flag,
+                "retrieval_scores": retrieval.scores,
+                "mode": "rate_limited",
+            }
+
+        safe_profile = self._privacy_safe_profile(profile)
         user_prompt = build_user_prompt(
             question=question,
-            profile=profile,
+            profile=safe_profile,
             retrieved_chunks=retrieval.chunks if retrieval.is_relevant else [],
             is_relevant=retrieval.is_relevant,
             integrity_flag=integrity_flag,
@@ -204,22 +229,37 @@ class TutorService:
 
         messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         if history:
-            for turn in history[-6:]:
+            # Send only the latest user/assistant pair to reduce third-party data sharing.
+            for turn in history[-2:]:
                 role = turn.get("role")
                 content = turn.get("content")
                 if role in {"user", "assistant"} and content:
                     messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": user_prompt})
 
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=0.3,
-            max_tokens=900,
-        )
-        answer_text = response.choices[0].message.content or (
-            "I could not generate an answer right now. Please try again."
-        )
+        try:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=900,
+            )
+            answer_text = response.choices[0].message.content or (
+                "I could not generate an answer right now. Please try again."
+            )
+        except Exception:
+            logger.exception("Groq chat completion failed")
+            return {
+                "answer": (
+                    "Sorry, I could not generate an answer right now. "
+                    "Please try again in a moment."
+                ),
+                "sources": sources,
+                "is_relevant": retrieval.is_relevant,
+                "integrity_flag": integrity_flag,
+                "retrieval_scores": retrieval.scores,
+                "mode": "error",
+            }
 
         return {
             "answer": answer_text,

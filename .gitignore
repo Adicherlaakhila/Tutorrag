@@ -1,6 +1,9 @@
 # Environment and secrets
 .env
 .streamlit/secrets.toml
+private/*.json
+!private/answers.enc
+data/question_bank.csv
 
 # Python
 __pycache__/
