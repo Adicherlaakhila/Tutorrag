@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from streamlit import config as st_config
 import streamlit as st
+
+# ASGI hosts need production mode so Streamlit mounts static frontend assets.
+st_config.set_option("global.developmentMode", False)
+st_config.set_option("server.headless", True)
 
 _SCRIPT = Path(__file__).resolve().parent / "streamlit_app.py"
 

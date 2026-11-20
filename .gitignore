@@ -17,6 +17,8 @@ venv/
 .venv/
 env/
 ENV/
+*.egg-info/
+vendor/**/build/
 
 # IDE / OS
 .idea/

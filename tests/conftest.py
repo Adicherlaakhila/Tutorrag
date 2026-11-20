@@ -12,3 +12,7 @@ os.environ.setdefault(
     "TUTORRAG_USAGE_PATH",
     str(Path(__file__).resolve().parent / ".usage_test" / "groq_usage.json"),
 )
+# UI AppTests expect the notes-only path (no access gate). Host shells used for
+# manual uvicorn smoke tests may export these; strip them for the test process.
+os.environ.pop("APP_ACCESS_CODE", None)
+os.environ.pop("GROQ_API_KEY", None)

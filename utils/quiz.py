@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import csv
+import random
 from pathlib import Path
 from typing import Any
-
-import pandas as pd
 
 from utils.answer_key import get_answer_key
 
@@ -14,61 +14,78 @@ DEFAULT_QUESTIONS_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "questions.csv"
 )
 
+_REQUIRED_COLUMNS = {
+    "question_id",
+    "question",
+    "topic",
+    "difficulty",
+    "option_a",
+    "option_b",
+    "option_c",
+    "option_d",
+}
+_FORBIDDEN_COLUMNS = {"correct_answer", "explanation"}
 
-def load_question_bank(path: Path | str | None = None) -> pd.DataFrame:
+
+def load_question_bank(path: Path | str | None = None) -> list[dict[str, str]]:
     """Load the public question bank (no answer key columns)."""
     csv_path = Path(path) if path else DEFAULT_QUESTIONS_PATH
     if not csv_path.exists():
         raise FileNotFoundError("Question bank is unavailable.")
 
-    df = pd.read_csv(csv_path)
-    required = {
-        "question_id",
-        "question",
-        "topic",
-        "difficulty",
-        "option_a",
-        "option_b",
-        "option_c",
-        "option_d",
-    }
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError("Question bank is missing required columns.")
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError("Question bank is missing required columns.")
+        columns = {name.strip() for name in reader.fieldnames}
+        missing = _REQUIRED_COLUMNS - columns
+        if missing:
+            raise ValueError("Question bank is missing required columns.")
+        # Refuse to load files that still embed plaintext answer keys.
+        if _FORBIDDEN_COLUMNS & columns:
+            raise ValueError("Public question bank must not include answer key columns.")
 
-    # Refuse to load files that still embed plaintext answer keys.
-    forbidden = {"correct_answer", "explanation"} & set(df.columns)
-    if forbidden:
-        raise ValueError("Public question bank must not include answer key columns.")
+        rows: list[dict[str, str]] = []
+        for raw in reader:
+            rows.append(
+                {
+                    "question_id": str(raw.get("question_id", "")).strip(),
+                    "question": str(raw.get("question", "")).strip(),
+                    "topic": str(raw.get("topic", "")).strip(),
+                    "difficulty": str(raw.get("difficulty", "")).strip(),
+                    "option_a": str(raw.get("option_a", "")).strip(),
+                    "option_b": str(raw.get("option_b", "")).strip(),
+                    "option_c": str(raw.get("option_c", "")).strip(),
+                    "option_d": str(raw.get("option_d", "")).strip(),
+                }
+            )
+    return rows
 
-    df = df.copy()
-    df["difficulty"] = df["difficulty"].astype(str).str.strip()
-    df["topic"] = df["topic"].astype(str).str.strip()
-    df["question_id"] = df["question_id"].astype(str).str.strip()
-    return df
 
-
-def available_topics(df: pd.DataFrame) -> list[str]:
-    return sorted(df["topic"].dropna().unique().tolist())
+def available_topics(bank: list[dict[str, str]]) -> list[str]:
+    topics = {row["topic"] for row in bank if row.get("topic")}
+    return sorted(topics)
 
 
 def filter_questions(
-    df: pd.DataFrame,
+    bank: list[dict[str, str]],
     topic: str | None = None,
     difficulty: str | None = None,
-) -> pd.DataFrame:
-    filtered = df
+) -> list[dict[str, str]]:
+    filtered = bank
     if topic:
-        filtered = filtered[filtered["topic"].str.casefold() == topic.casefold()]
+        topic_key = topic.casefold()
+        filtered = [row for row in filtered if row["topic"].casefold() == topic_key]
     if difficulty:
-        filtered = filtered[
-            filtered["difficulty"].str.casefold() == difficulty.casefold()
+        difficulty_key = difficulty.casefold()
+        filtered = [
+            row for row in filtered if row["difficulty"].casefold() == difficulty_key
         ]
-    return filtered.reset_index(drop=True)
+    return filtered
 
 
 def select_quiz_questions(
-    df: pd.DataFrame,
+    bank: list[dict[str, str]],
     topic: str | None,
     difficulty: str | None,
     count: int = 5,
@@ -79,10 +96,10 @@ def select_quiz_questions(
     Returned question objects intentionally omit correct answers/explanations.
     Grading resolves those server-side from the private answer key.
     """
-    filtered = filter_questions(df, topic=topic, difficulty=difficulty)
+    filtered = filter_questions(bank, topic=topic, difficulty=difficulty)
     # Only keep items that exist in the server answer key.
     answer_key = get_answer_key()
-    filtered = filtered[filtered["question_id"].isin(answer_key.keys())]
+    filtered = [row for row in filtered if row["question_id"] in answer_key]
     if len(filtered) < count:
         label_topic = topic or "any topic"
         label_level = difficulty or "any level"
@@ -92,9 +109,9 @@ def select_quiz_questions(
             "or clear the topic filter to use the full unit."
         )
 
-    sample = filtered.sample(n=count).reset_index(drop=True)
+    sample = random.sample(filtered, k=count)
     questions: list[dict[str, Any]] = []
-    for _, row in sample.iterrows():
+    for row in sample:
         questions.append(
             {
                 "question_id": str(row["question_id"]),

@@ -79,18 +79,19 @@ def test_homework_detection():
 
 
 def test_question_bank_has_no_answer_columns():
-    df = load_question_bank()
-    assert 30 <= len(df) <= 50
-    assert "correct_answer" not in df.columns
-    assert "explanation" not in df.columns
+    bank = load_question_bank()
+    assert 30 <= len(bank) <= 50
+    for row in bank:
+        assert "correct_answer" not in row
+        assert "explanation" not in row
     # Local/dev answer file or QUIZ_ANSWER_BANK may provide keys for grading tests.
     assert len(get_answer_key()) >= 1
 
 
 def test_question_bank_size_and_quiz():
-    df = load_question_bank()
+    bank = load_question_bank()
     questions, error = select_quiz_questions(
-        df, topic=None, difficulty="Beginner", count=5
+        bank, topic=None, difficulty="Beginner", count=5
     )
     assert error is None
     assert questions is not None
@@ -101,9 +102,9 @@ def test_question_bank_size_and_quiz():
 
 
 def test_quiz_insufficient_questions_message():
-    df = load_question_bank()
+    bank = load_question_bank()
     questions, error = select_quiz_questions(
-        df,
+        bank,
         topic="Introduction to Light",
         difficulty="Advanced",
         count=5,

@@ -13,10 +13,11 @@ TutorRAG is a working Class 10 Science tutoring web app for the unit **Light –
 
 ## Tech stack
 
-- Python + Streamlit
+- Python + Streamlit (ASGI via `st.App`)
 - Groq chat model (`llama-3.3-70b-versatile` by default)
-- scikit-learn TF-IDF retrieval
-- Local JSON notes + CSV question bank
+- Lightweight pure-Python TF-IDF retrieval (no scikit-learn / SciPy)
+- Local JSON notes + CSV question bank via stdlib `csv`
+- Deploy-size `pyarrow` stub so Cursor publish stays under the 500 MB limit
 
 ## Project structure
 
