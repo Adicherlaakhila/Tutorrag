@@ -1,0 +1,10 @@
+# Runtime deps kept lean for Cursor's ~500 MB function limit.
+# Local stub must live at vendor/pyarrow with project name "pyarrow" so uv/pip
+# path-derived names match metadata and satisfy Streamlit's hard dependency
+# without downloading the real 160MB+ wheel.
+# RAG uses pure-Python TF-IDF (no scikit-learn/scipy). Quiz uses stdlib csv.
+./vendor/pyarrow
+streamlit>=1.60.0,<2
+uvicorn>=0.30.0,<1
+groq>=0.4.0
+python-dotenv>=1.0.0

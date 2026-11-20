@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Name MUST be "pyarrow" (not pyarrow-stub): Streamlit depends on package name
+# "pyarrow", and uv requires path folder name to match this metadata name.
+name = "pyarrow"
+version = "17.0.0"
+description = "Import-failing pyarrow stub to keep TutorRAG under Cursor's 500MB limit."
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["pyarrow*"]

@@ -1,0 +1,12 @@
+[global]
+developmentMode = false
+
+[server]
+headless = true
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+# Keep Streamlit defaults; TutorRAG applies light custom CSS in-app.
