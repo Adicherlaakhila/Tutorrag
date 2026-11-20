@@ -9,9 +9,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from utils.secrets_util import get_secret, get_secret_any
+
 logger = logging.getLogger(__name__)
 
-# Local-only fallback path. Must remain gitignored and must never be committed.
 _DEV_ANSWERS_PATH = (
     Path(__file__).resolve().parent.parent / "private" / "answers.dev.json"
 )
@@ -35,19 +36,12 @@ def _from_mapping(data: Any) -> dict[str, dict[str, str]]:
 
 
 def _read_secret_json() -> dict[str, dict[str, str]] | None:
-    raw = os.getenv("QUIZ_ANSWER_BANK", "").strip()
-    if not raw:
-        try:
-            import streamlit as st
-
-            secrets = getattr(st, "secrets", None)
-            if secrets is not None and "QUIZ_ANSWER_BANK" in secrets:
-                value = secrets["QUIZ_ANSWER_BANK"]
-                if isinstance(value, dict):
-                    return _from_mapping(value)
-                raw = str(value).strip()
-        except Exception:
-            raw = ""
+    raw_any = get_secret_any("QUIZ_ANSWER_BANK")
+    if raw_any is None:
+        return None
+    if isinstance(raw_any, dict):
+        return _from_mapping(raw_any)
+    raw = str(raw_any).strip()
     if not raw:
         return None
     try:
@@ -58,8 +52,8 @@ def _read_secret_json() -> dict[str, dict[str, str]] | None:
 
 
 def _read_dev_file() -> dict[str, dict[str, str]] | None:
-    """Optional local developer file; never used as a shipped publish artifact."""
-    if os.getenv("TUTORRAG_DISABLE_DEV_ANSWERS", "").strip() == "1":
+    """Local developer file only when explicitly enabled."""
+    if get_secret("TUTORRAG_ALLOW_DEV_ANSWERS") != "1":
         return None
     if not _DEV_ANSWERS_PATH.exists():
         return None
@@ -72,11 +66,6 @@ def _read_dev_file() -> dict[str, dict[str, str]] | None:
 
 @lru_cache(maxsize=1)
 def load_answer_key() -> dict[str, dict[str, str]]:
-    """
-    Resolve answers in this order:
-    1) QUIZ_ANSWER_BANK host secret / env (production)
-    2) gitignored private/answers.dev.json (local development only)
-    """
     secret_data = _read_secret_json()
     if secret_data is not None:
         return secret_data
@@ -88,7 +77,6 @@ def load_answer_key() -> dict[str, dict[str, str]]:
 
 
 def get_answer_key() -> dict[str, dict[str, str]]:
-    """Return the current answer key (clears easily in tests via cache_clear)."""
     return load_answer_key()
 
 
@@ -97,8 +85,6 @@ def clear_answer_key_cache() -> None:
 
 
 class _AnswerKeyProxy(dict):
-    """Dict-like proxy so imports of ANSWER_KEY always see the current secret."""
-
     def _data(self) -> dict[str, dict[str, str]]:
         return get_answer_key()
 

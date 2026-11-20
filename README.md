@@ -67,9 +67,15 @@ Open the local URL shown by Streamlit (usually `http://localhost:8501`).
 ```toml
 GROQ_API_KEY = "your_groq_api_key"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+QUIZ_ANSWER_BANK = "{\"Q01\":{\"correct_answer\":\"A\",\"explanation\":\"...\"}}"
+APP_ACCESS_CODE = "your-class-access-code"
+GROQ_DAILY_LIMIT = "40"
+GROQ_MONTHLY_LIMIT = "400"
 ```
 
-6. Deploy and open the public URL (no login required for end users).
+See also `docs/QUIZ_ANSWER_BANK.md`.
+
+6. Deploy and open the public URL. Learners unlock with the class access code, then use a short security check before AI answers.
 
 ## Tests
 

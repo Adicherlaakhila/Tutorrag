@@ -4,6 +4,8 @@
 private/
 data/question_bank.csv
 data/*.enc
+data/.usage/
+tests/.usage_test/
 
 # Python
 __pycache__/

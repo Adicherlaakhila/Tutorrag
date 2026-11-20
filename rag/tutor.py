@@ -12,6 +12,7 @@ from groq import Groq
 from rag.chunking import notes_to_chunks
 from rag.loader import load_notes
 from rag.retrieval import TFIDFRetriever
+from utils.captcha import verify_math_captcha
 from utils.prompts import SYSTEM_PROMPT, build_user_prompt
 from utils.rate_limit import GROQ_RATE_LIMITER
 from utils.validation import is_homework_request, validate_chat_question
@@ -159,6 +160,9 @@ class TutorService:
         history: list[dict[str, str]] | None = None,
         client_key: str | None = None,
         client_ip: str | None = None,
+        captcha_token: str | None = None,
+        captcha_answer: str | None = None,
+        authenticated: bool = False,
     ) -> dict[str, Any]:
         ok, validation_error = validate_chat_question(question)
         if not ok:
@@ -169,6 +173,19 @@ class TutorService:
                 "integrity_flag": False,
                 "retrieval_scores": [],
                 "mode": "invalid",
+            }
+
+        if not authenticated:
+            return {
+                "answer": (
+                    "Please unlock TutorRAG with the class access code before using "
+                    "AI tutoring."
+                ),
+                "sources": [],
+                "is_relevant": False,
+                "integrity_flag": False,
+                "retrieval_scores": [],
+                "mode": "unauthorized",
             }
 
         question = question.strip()
@@ -210,11 +227,23 @@ class TutorService:
                 "mode": "notes_fallback",
             }
 
-        # Paid Groq path: enforce IP + session limits before any API call.
-        # A new session alone cannot bypass the per-IP budget.
+        # Paid Groq path requires a fresh CAPTCHA + rate/budget checks.
+        if not verify_math_captcha(captcha_token or "", captcha_answer or ""):
+            return {
+                "answer": (
+                    "Please solve the security check correctly before asking the AI tutor."
+                ),
+                "sources": sources,
+                "is_relevant": retrieval.is_relevant,
+                "integrity_flag": integrity_flag,
+                "retrieval_scores": retrieval.scores,
+                "mode": "captcha_failed",
+            }
+
         allowed, limit_message = GROQ_RATE_LIMITER.allow(
             ip_key=client_ip or "unknown-ip",
             session_key=client_key or "anonymous",
+            enforce_budget=True,
         )
         if not allowed:
             return {

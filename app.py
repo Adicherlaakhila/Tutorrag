@@ -9,13 +9,16 @@ from pathlib import Path
 import streamlit as st
 
 from rag.tutor import TutorService
-from utils.client_identity import resolve_client_ip
+from utils.auth_gate import auth_required, verify_access_code
+from utils.captcha import issue_math_captcha
+from utils.client_identity import resolve_client_bucket
 from utils.quiz import (
     available_topics,
     grade_quiz,
     load_question_bank,
     select_quiz_questions,
 )
+from utils.rate_limit import QUIZ_RATE_LIMITER
 from utils.validation import (
     DEFAULT_SUBJECT,
     DEFAULT_TOPIC,
@@ -37,7 +40,8 @@ PRIVACY_NOTICE = (
     "non-identifying learning preferences (level, subject, topic, style) may be "
     "sent to Groq’s third-party AI service to generate a reply. Your nickname is "
     "not sent to Groq. Do not enter passwords, personal contact details, or "
-    "other sensitive information in chat. Quiz answers are checked on the server."
+    "other sensitive information in chat. Quiz answers are checked on the server "
+    "and are never included in downloadable question files. API keys stay on the server."
 )
 
 
@@ -53,12 +57,28 @@ def _init_state() -> None:
         "tutor": None,
         "question_bank": None,
         "client_key": None,
+        "authenticated": False,
+        "captcha_prompt": None,
+        "captcha_token": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
     if not st.session_state.client_key:
         st.session_state.client_key = f"session-{uuid.uuid4().hex}"
+    # Local/dev without APP_ACCESS_CODE remains usable.
+    if not auth_required():
+        st.session_state.authenticated = True
+    if not st.session_state.captcha_token:
+        challenge = issue_math_captcha()
+        st.session_state.captcha_prompt = challenge.prompt
+        st.session_state.captcha_token = challenge.token
+
+
+def _refresh_captcha() -> None:
+    challenge = issue_math_captcha()
+    st.session_state.captcha_prompt = challenge.prompt
+    st.session_state.captcha_token = challenge.token
 
 
 @st.cache_resource
@@ -77,6 +97,23 @@ def render_integrity_banner() -> None:
 
 def render_privacy_banner() -> None:
     st.caption(PRIVACY_NOTICE)
+
+
+def render_access_gate() -> bool:
+    """Return True when the learner is allowed to use protected features."""
+    if st.session_state.authenticated:
+        return True
+    st.warning("Enter the class access code to unlock TutorRAG.")
+    with st.form("access_code_form"):
+        code = st.text_input("Class access code *", type="password")
+        submitted = st.form_submit_button("Unlock", use_container_width=True)
+    if submitted:
+        if verify_access_code(code):
+            st.session_state.authenticated = True
+            st.success("Access unlocked for this session.")
+            st.rerun()
+        st.error("That access code is not valid.")
+    return False
 
 
 def render_profile_form(sidebar: bool = False) -> None:
@@ -134,6 +171,11 @@ def render_sidebar() -> None:
     st.sidebar.caption("Class 10 Science · Light")
     st.sidebar.divider()
 
+    if st.session_state.authenticated:
+        st.sidebar.caption("Access: unlocked")
+    elif auth_required():
+        st.sidebar.caption("Access: locked")
+
     profile = st.session_state.profile
     if profile and not st.session_state.profile_edit_mode:
         st.sidebar.markdown("**Learner**")
@@ -159,6 +201,10 @@ def render_chat() -> None:
     st.subheader("AI Doubt Chat")
     st.caption("Ask a Science doubt about Light – Reflection and Refraction.")
 
+    if not st.session_state.authenticated:
+        st.warning("Unlock TutorRAG with the class access code to use AI chat.")
+        return
+
     profile = st.session_state.profile
     if not profile:
         st.warning("Please complete your learner profile in the sidebar before chatting.")
@@ -171,6 +217,18 @@ def render_chat() -> None:
                 st.markdown("**Sources used**")
                 for source in message["sources"]:
                     st.markdown(f"- {source['label']}")
+
+    with st.expander("Security check (required for AI answers)", expanded=True):
+        st.caption(st.session_state.captcha_prompt or "Loading security check…")
+        captcha_answer = st.text_input(
+            "Your answer",
+            key="captcha_answer_input",
+            label_visibility="collapsed",
+            placeholder="Type the number",
+        )
+        if st.button("New security question", key="refresh_captcha"):
+            _refresh_captcha()
+            st.rerun()
 
     prompt = st.chat_input("Type your Science doubt here…")
     if not prompt:
@@ -189,7 +247,10 @@ def render_chat() -> None:
                     profile=profile,
                     history=st.session_state.messages[:-1],
                     client_key=st.session_state.client_key,
-                    client_ip=resolve_client_ip(),
+                    client_ip=resolve_client_bucket(),
+                    captcha_token=st.session_state.captcha_token,
+                    captcha_answer=captcha_answer,
+                    authenticated=bool(st.session_state.authenticated),
                 )
             except Exception:
                 logger.exception("Chat answer failed")
@@ -206,6 +267,7 @@ def render_chat() -> None:
                         "sources": [],
                     }
                 )
+                _refresh_captcha()
                 return
 
             st.markdown(result["answer"])
@@ -221,11 +283,17 @@ def render_chat() -> None:
             "sources": result["sources"],
         }
     )
+    # One-time CAPTCHA token: refresh after every AI attempt.
+    _refresh_captcha()
 
 
 def render_quiz() -> None:
     st.subheader("Practice Quiz")
     st.caption("Five questions filtered by topic and learning level.")
+
+    if not st.session_state.authenticated:
+        st.warning("Unlock TutorRAG with the class access code to use the practice quiz.")
+        return
 
     profile = st.session_state.profile
     if not profile:
@@ -262,6 +330,14 @@ def render_quiz() -> None:
     topic_filter = None if selected_topic.startswith("(All") else selected_topic
 
     if st.button("Generate 5-question quiz", use_container_width=True):
+        allowed, limit_message = QUIZ_RATE_LIMITER.allow(
+            ip_key=resolve_client_bucket(),
+            session_key=st.session_state.client_key,
+        )
+        if not allowed:
+            st.session_state.quiz_error = limit_message
+            st.session_state.quiz_questions = None
+            st.rerun()
         questions, error = select_quiz_questions(
             bank,
             topic=topic_filter,
@@ -285,14 +361,12 @@ def render_quiz() -> None:
         answers: dict[str, str] = {}
         for index, question in enumerate(questions, start=1):
             st.markdown(f"**Q{index}. {question['question']}**")
-            st.caption(
-                f"{question['topic']} · {question['difficulty']} · {question['question_id']}"
-            )
+            st.caption(f"{question['topic']} · {question['difficulty']}")
             option_labels = [
                 f"{key}. {value}" for key, value in question["options"].items()
             ]
             choice = st.radio(
-                f"Answer for {question['question_id']}",
+                f"Answer for question {index}",
                 options=option_labels,
                 key=f"quiz_choice_{question['question_id']}",
                 label_visibility="collapsed",
@@ -309,19 +383,14 @@ def render_quiz() -> None:
     if st.session_state.quiz_submitted and st.session_state.quiz_result:
         result = st.session_state.quiz_result
         st.success(f"Score: {result['score']} / {result['total']}")
-        for item in result["details"]:
+        for index, item in enumerate(result["details"], start=1):
             if item["is_correct"]:
-                st.markdown(
-                    f"✅ **{item['question_id']}** – Correct "
-                    f"(Answer: {item['correct_answer']})"
-                )
+                st.markdown(f"✅ **Q{index}** – Correct")
             else:
                 selected = item["selected"] or "No answer"
-                st.markdown(
-                    f"❌ **{item['question_id']}** – Incorrect "
-                    f"(Your answer: {selected}; Correct: {item['correct_answer']})"
-                )
-                st.markdown(f"Explanation: {item['explanation']}")
+                st.markdown(f"❌ **Q{index}** – Incorrect (Your answer: {selected})")
+                # Explain without publishing the correct option letter (reduces scraping).
+                st.markdown(f"Hint/explanation: {item['explanation']}")
 
 
 def apply_styles() -> None:
@@ -359,6 +428,9 @@ def main() -> None:
     render_integrity_banner()
     render_privacy_banner()
 
+    if not render_access_gate():
+        return
+
     if st.session_state.profile:
         st.caption(f"Active profile: {profile_summary(st.session_state.profile)}")
     else:
@@ -384,12 +456,13 @@ def main() -> None:
             When AI chat is enabled, questions and learning preferences may be sent to
             **Groq**, a third-party AI provider, to generate answers. Nicknames are not
             sent to Groq. Practice-quiz answer keys are checked on the server and are not
-            included in the public question file.
+            included in the public question file. API secrets never appear in the browser UI.
 
-            ### Usage limits
-            Tutoring requests that use Groq are rate-limited on the server by network
-            address and session, with spacing between requests, so completing a profile
-            or opening a new session does not grant unlimited API access.
+            ### Security and usage limits
+            - Class access code unlocks the app for a session
+            - AI answers require a short security check (CAPTCHA)
+            - Groq calls are limited per network/session and by daily/monthly budgets
+            - Quiz generation is rate-limited to reduce answer-bank scraping
             """
         )
         notes_path = Path("knowledge_base/notes.json")

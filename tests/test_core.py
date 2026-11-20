@@ -161,11 +161,13 @@ def test_notes_fallback_adapts_level_and_cites():
         "What is reflection of light?",
         {**base_profile, "level": "Beginner", "style": "Simple Explanation"},
         client_key="test-beginner",
+        authenticated=True,
     )
     advanced = tutor.answer(
         "What is reflection of light?",
         {**base_profile, "level": "Advanced", "style": "Exam-Focused Answers"},
         client_key="test-advanced",
+        authenticated=True,
     )
     assert beginner["is_relevant"] and advanced["is_relevant"]
     assert beginner["sources"] and "Source:" in beginner["sources"][0]["label"]
@@ -188,6 +190,7 @@ def test_homework_integrity_fallback():
             "style": "Simple Explanation",
         },
         client_key="test-homework",
+        authenticated=True,
     )
     assert result["integrity_flag"] is True
     assert "ready-to-submit" in result["answer"].lower()
@@ -206,10 +209,12 @@ def test_rate_limiter_blocks_excess_requests():
             global_window_seconds=600,
         )
     )
-    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a")[0] is True
-    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a")[0] is True
-    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a")[0] is True
-    allowed, message = limiter.allow(ip_key="10.0.0.1", session_key="user-a")
+    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a", enforce_budget=False)[0]
+    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a", enforce_budget=False)[0]
+    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a", enforce_budget=False)[0]
+    allowed, message = limiter.allow(
+        ip_key="10.0.0.1", session_key="user-a", enforce_budget=False
+    )
     assert allowed is False
     assert message is not None
     assert "limit" in message.lower()

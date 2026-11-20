@@ -1,4 +1,4 @@
-"""Server-side rate limiting for paid LLM API calls (IP + session aware)."""
+"""Server-side rate limiting for paid LLM API calls (IP + session + budgets)."""
 
 from __future__ import annotations
 
@@ -8,24 +8,22 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 
+from utils.usage_budget import GROQ_USAGE_BUDGET
+
 
 @dataclass(frozen=True)
 class RateLimitConfig:
-    # Per network identity (IP / fingerprint) — survives new browser sessions.
-    per_ip_max_requests: int = 12
-    per_ip_window_seconds: int = 600  # 10 minutes
-    # Extra per-session cap so one session cannot burn the whole IP budget alone.
-    per_session_max_requests: int = 6
+    per_ip_max_requests: int = 8
+    per_ip_window_seconds: int = 600
+    per_session_max_requests: int = 4
     per_session_window_seconds: int = 600
-    # Minimum spacing between Groq calls for the same IP.
-    min_interval_seconds: float = 8.0
-    # Process-wide budget.
-    global_max_requests: int = 60
+    min_interval_seconds: float = 10.0
+    global_max_requests: int = 30
     global_window_seconds: int = 600
 
 
 class RateLimiter:
-    """Thread-safe sliding-window limiter keyed by IP and session."""
+    """Thread-safe sliding-window limiter keyed by IP/fingerprint and session."""
 
     def __init__(self, config: RateLimitConfig | None = None) -> None:
         self.config = config or RateLimitConfig()
@@ -44,11 +42,17 @@ class RateLimiter:
         *,
         ip_key: str,
         session_key: str,
+        enforce_budget: bool = True,
     ) -> tuple[bool, str | None]:
         """Return (allowed, error_message)."""
         ip = (ip_key or "unknown-ip").strip() or "unknown-ip"
         session = (session_key or "anonymous").strip() or "anonymous"
         now = time.time()
+
+        if enforce_budget:
+            ok_budget, budget_msg = GROQ_USAGE_BUDGET.allow_and_increment(ip)
+            if not ok_budget:
+                return False, budget_msg
 
         with self._lock:
             self._by_ip[ip] = self._prune(
@@ -101,10 +105,34 @@ class RateLimiter:
 
 
 def fingerprint_client(ip: str, user_agent: str = "") -> str:
-    """Stable hash for logging/metrics without storing raw UA strings long-term."""
     material = f"{ip}|{user_agent}".encode("utf-8")
     return hashlib.sha256(material).hexdigest()[:32]
 
 
-# Process-wide limiter shared by Streamlit sessions on one server.
 GROQ_RATE_LIMITER = RateLimiter()
+
+
+# Separate limiter for quiz generation to reduce answer-bank scraping.
+class QuizRateLimiter(RateLimiter):
+    def __init__(self) -> None:
+        super().__init__(
+            RateLimitConfig(
+                per_ip_max_requests=3,
+                per_ip_window_seconds=86400,  # 3 quizzes / day / IP
+                per_session_max_requests=2,
+                per_session_window_seconds=86400,
+                min_interval_seconds=20.0,
+                global_max_requests=80,
+                global_window_seconds=86400,
+            )
+        )
+
+    def allow(self, *, ip_key: str, session_key: str, enforce_budget: bool = False):
+        return super().allow(
+            ip_key=ip_key,
+            session_key=session_key,
+            enforce_budget=False,
+        )
+
+
+QUIZ_RATE_LIMITER = QuizRateLimiter()
