@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def test_incomplete_profile_shows_errors():
-    at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30)
+    at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=30)
     at.run()
     # Submit empty nickname via sidebar form
     at.sidebar.text_input[0].set_value("")
@@ -24,7 +24,7 @@ def test_incomplete_profile_shows_errors():
 
 
 def test_save_profile_and_generate_quiz():
-    at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30)
+    at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=30)
     at.run()
 
     at.sidebar.text_input[0].set_value("Alex")
@@ -47,7 +47,7 @@ def test_save_profile_and_generate_quiz():
 
 
 def test_out_of_syllabus_chat_without_groq():
-    at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30)
+    at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=30)
     at.run()
     at.sidebar.text_input[0].set_value("Alex")
     at.sidebar.button[0].click().run()

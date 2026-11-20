@@ -22,7 +22,8 @@ TutorRAG is a working Class 10 Science tutoring web app for the unit **Light –
 
 ```text
 TutorRAG/
-├── app.py
+├── app.py                   # ASGI entry: st.App → streamlit_app.py
+├── streamlit_app.py         # Streamlit UI (profile, tutor, quiz)
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
@@ -50,18 +51,23 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env and set GROQ_API_KEY=your_key
-streamlit run app.py
+# Edit .env and set GROQ_API_KEY / QUIZ_ANSWER_BANK / APP_ACCESS_CODE
+# Preferred (ASGI / Cursor publisher entry point):
+uvicorn app:app --host 127.0.0.1 --port 8501
+# Or classic Streamlit CLI:
+streamlit run streamlit_app.py
 ```
 
-Open the local URL shown by Streamlit (usually `http://localhost:8501`).
+Open the local URL shown by the server (usually `http://localhost:8501`).
+
+Deployment note: `app.py` exports Streamlit’s official ASGI `app = st.App("streamlit_app.py")`. The UI and features remain in `streamlit_app.py`.
 
 ## Streamlit Community Cloud deployment
 
 1. Push this repository to GitHub.
 2. Go to [Share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
 3. Click **New app**.
-4. Select this repository, branch `main` (or your feature branch), and main file `app.py`.
+4. Select this repository, branch `main` (or your feature branch), and main file `streamlit_app.py` (or deploy via Cursor using ASGI `app:app`).
 5. Under **Advanced settings → Secrets**, add:
 
 ```toml
