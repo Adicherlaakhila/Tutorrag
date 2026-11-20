@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from utils.answer_key import ANSWER_KEY
+from utils.answer_key import get_answer_key
 
 
 DEFAULT_QUESTIONS_PATH = (
@@ -81,7 +81,8 @@ def select_quiz_questions(
     """
     filtered = filter_questions(df, topic=topic, difficulty=difficulty)
     # Only keep items that exist in the server answer key.
-    filtered = filtered[filtered["question_id"].isin(ANSWER_KEY.keys())]
+    answer_key = get_answer_key()
+    filtered = filtered[filtered["question_id"].isin(answer_key.keys())]
     if len(filtered) < count:
         label_topic = topic or "any topic"
         label_level = difficulty or "any level"
@@ -121,7 +122,7 @@ def grade_quiz(
     for question in questions:
         qid = question["question_id"]
         selected = str(answers.get(qid, "")).strip().upper()
-        key = ANSWER_KEY.get(qid)
+        key = get_answer_key().get(qid)
         if not key:
             details.append(
                 {

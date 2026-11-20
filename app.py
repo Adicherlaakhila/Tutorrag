@@ -9,6 +9,7 @@ from pathlib import Path
 import streamlit as st
 
 from rag.tutor import TutorService
+from utils.client_identity import resolve_client_ip
 from utils.quiz import (
     available_topics,
     grade_quiz,
@@ -188,6 +189,7 @@ def render_chat() -> None:
                     profile=profile,
                     history=st.session_state.messages[:-1],
                     client_key=st.session_state.client_key,
+                    client_ip=resolve_client_ip(),
                 )
             except Exception:
                 logger.exception("Chat answer failed")
@@ -385,7 +387,9 @@ def main() -> None:
             included in the public question file.
 
             ### Usage limits
-            Tutoring requests that use Groq are rate-limited to protect the service from abuse.
+            Tutoring requests that use Groq are rate-limited on the server by network
+            address and session, with spacing between requests, so completing a profile
+            or opening a new session does not grant unlimited API access.
             """
         )
         notes_path = Path("knowledge_base/notes.json")

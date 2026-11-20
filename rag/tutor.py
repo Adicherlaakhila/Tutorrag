@@ -14,7 +14,7 @@ from rag.loader import load_notes
 from rag.retrieval import TFIDFRetriever
 from utils.prompts import SYSTEM_PROMPT, build_user_prompt
 from utils.rate_limit import GROQ_RATE_LIMITER
-from utils.validation import is_homework_request
+from utils.validation import is_homework_request, validate_chat_question
 
 logger = logging.getLogger(__name__)
 
@@ -158,17 +158,20 @@ class TutorService:
         profile: dict[str, Any],
         history: list[dict[str, str]] | None = None,
         client_key: str | None = None,
+        client_ip: str | None = None,
     ) -> dict[str, Any]:
-        question = (question or "").strip()
-        if not question:
+        ok, validation_error = validate_chat_question(question)
+        if not ok:
             return {
-                "answer": "Please enter a Science doubt to continue.",
+                "answer": validation_error or "Please enter a valid Science doubt.",
                 "sources": [],
                 "is_relevant": False,
                 "integrity_flag": False,
                 "retrieval_scores": [],
+                "mode": "invalid",
             }
 
+        question = question.strip()
         integrity_flag = is_homework_request(question)
         retrieval = self.retriever.retrieve(question, top_k=3)
 
@@ -186,6 +189,7 @@ class TutorService:
                 "is_relevant": False,
                 "integrity_flag": False,
                 "retrieval_scores": retrieval.scores,
+                "mode": "out_of_syllabus",
             }
 
         sources = self._sources_from_chunks(retrieval.chunks if retrieval.is_relevant else [])
@@ -206,7 +210,12 @@ class TutorService:
                 "mode": "notes_fallback",
             }
 
-        allowed, limit_message = GROQ_RATE_LIMITER.allow(client_key or "anonymous")
+        # Paid Groq path: enforce IP + session limits before any API call.
+        # A new session alone cannot bypass the per-IP budget.
+        allowed, limit_message = GROQ_RATE_LIMITER.allow(
+            ip_key=client_ip or "unknown-ip",
+            session_key=client_key or "anonymous",
+        )
         if not allowed:
             return {
                 "answer": limit_message

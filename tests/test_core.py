@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from rag.chunking import notes_to_chunks
 from rag.loader import load_notes
 from rag.retrieval import TFIDFRetriever
-from utils.answer_key import ANSWER_KEY
+from utils.answer_key import get_answer_key
 from utils.quiz import grade_quiz, load_question_bank, select_quiz_questions
 from utils.rate_limit import RateLimitConfig, RateLimiter
 from utils.validation import is_homework_request, validate_profile
@@ -83,7 +83,8 @@ def test_question_bank_has_no_answer_columns():
     assert 30 <= len(df) <= 50
     assert "correct_answer" not in df.columns
     assert "explanation" not in df.columns
-    assert len(ANSWER_KEY) >= len(df)
+    # Local/dev answer file or QUIZ_ANSWER_BANK may provide keys for grading tests.
+    assert len(get_answer_key()) >= 1
 
 
 def test_question_bank_size_and_quiz():
@@ -130,7 +131,7 @@ def test_quiz_grading_uses_server_answer_key():
     assert result["total"] == 2
     assert result["details"][0]["is_correct"] is True
     assert result["details"][1]["is_correct"] is False
-    assert result["details"][1]["correct_answer"] == ANSWER_KEY["Q02"]["correct_answer"]
+    assert result["details"][1]["correct_answer"] == get_answer_key()["Q02"]["correct_answer"]
 
 
 def test_beginner_and_advanced_same_query_retrieve_same_sources():
@@ -196,16 +197,19 @@ def test_homework_integrity_fallback():
 def test_rate_limiter_blocks_excess_requests():
     limiter = RateLimiter(
         RateLimitConfig(
-            max_requests=3,
-            window_seconds=600,
+            per_ip_max_requests=3,
+            per_ip_window_seconds=600,
+            per_session_max_requests=3,
+            per_session_window_seconds=600,
+            min_interval_seconds=0,
             global_max_requests=100,
             global_window_seconds=600,
         )
     )
-    assert limiter.allow("user-a")[0] is True
-    assert limiter.allow("user-a")[0] is True
-    assert limiter.allow("user-a")[0] is True
-    allowed, message = limiter.allow("user-a")
+    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a")[0] is True
+    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a")[0] is True
+    assert limiter.allow(ip_key="10.0.0.1", session_key="user-a")[0] is True
+    allowed, message = limiter.allow(ip_key="10.0.0.1", session_key="user-a")
     assert allowed is False
     assert message is not None
     assert "limit" in message.lower()

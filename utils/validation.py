@@ -78,6 +78,34 @@ def is_homework_request(text: str) -> bool:
     return any(pattern in lowered for pattern in HOMEWORK_PATTERNS)
 
 
+def validate_chat_question(text: str) -> tuple[bool, str | None]:
+    """Validate chat input before any paid LLM call."""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return False, "Please enter a Science doubt to continue."
+    if len(cleaned) < 3:
+        return False, "Please enter a slightly longer question."
+    if len(cleaned) > 1200:
+        return False, "Please shorten your question to under 1200 characters."
+    # Block obvious automation / injection payloads.
+    lowered = cleaned.lower()
+    banned_markers = (
+        "<script",
+        "javascript:",
+        "http://",
+        "https://",
+        "{% ",
+        "{{",
+    )
+    if any(marker in lowered for marker in banned_markers):
+        return False, "Please enter a plain Science question without links or code."
+    # Reject inputs that are mostly repeated characters (bot spam).
+    compact = "".join(cleaned.split())
+    if len(compact) >= 20 and len(set(compact.lower())) <= 2:
+        return False, "Please enter a real Science question."
+    return True, None
+
+
 def profile_summary(profile: dict[str, Any] | None) -> str:
     if not profile:
         return "No learner profile saved yet."

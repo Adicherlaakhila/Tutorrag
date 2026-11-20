@@ -29,7 +29,7 @@ TutorRAG/
 ├── .env.example
 ├── knowledge_base/notes.json
 ├── data/questions.csv
-├── private/answers.enc
+├── private/                 # local-only; gitignored (not shipped)
 ├── rag/
 │   ├── loader.py
 │   ├── chunking.py
