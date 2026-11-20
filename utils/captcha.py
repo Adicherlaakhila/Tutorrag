@@ -9,16 +9,26 @@ import secrets
 import time
 from dataclasses import dataclass
 
+from utils.secrets_util import get_secret
+
 
 def _captcha_pepper() -> bytes:
-    # Prefer host secret; fall back to process-local random (not shipped).
-    configured = os.getenv("CAPTCHA_PEPPER", "").strip()
+    configured = (get_secret("CAPTCHA_PEPPER") or os.getenv("CAPTCHA_PEPPER", "")).strip()
     if configured:
         return configured.encode("utf-8")
-    # Stable for process lifetime only.
+    # Stable for process lifetime only (dev / single-worker).
     if not hasattr(_captcha_pepper, "_value"):
         setattr(_captcha_pepper, "_value", secrets.token_bytes(32))
     return getattr(_captcha_pepper, "_value")
+
+
+def captcha_pepper_configured() -> bool:
+    return bool((get_secret("CAPTCHA_PEPPER") or os.getenv("CAPTCHA_PEPPER", "")).strip())
+
+
+def captcha_ready_for_groq() -> bool:
+    """Public Groq path should use a shared pepper across workers."""
+    return captcha_pepper_configured()
 
 
 @dataclass
@@ -29,17 +39,17 @@ class CaptchaChallenge:
 
 
 def issue_math_captcha(ttl_seconds: int = 300) -> CaptchaChallenge:
-    a = secrets.randbelow(8) + 2
-    b = secrets.randbelow(8) + 2
-    answer = str(a + b)
+    # Multiplication yields a larger answer space than tiny addition sums.
+    a = secrets.randbelow(9) + 4  # 4..12
+    b = secrets.randbelow(9) + 4  # 4..12
+    answer = str(a * b)
     nonce = secrets.token_hex(8)
     expires_at = time.time() + ttl_seconds
     material = f"{nonce}:{answer}:{int(expires_at)}".encode("utf-8")
     token = hmac.new(_captcha_pepper(), material, hashlib.sha256).hexdigest()
-    # Embed nonce + expiry in token payload (signed).
     packed = f"{nonce}.{int(expires_at)}.{token}"
     return CaptchaChallenge(
-        prompt=f"What is {a} + {b}?",
+        prompt=f"What is {a} × {b}?",
         token=packed,
         expires_at=expires_at,
     )

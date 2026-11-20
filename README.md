@@ -17,7 +17,7 @@ TutorRAG is a working Class 10 Science tutoring web app for the unit **Light –
 - Groq chat model (`llama-3.3-70b-versatile` by default)
 - Lightweight pure-Python TF-IDF retrieval (no scikit-learn / SciPy)
 - Local JSON notes + CSV question bank via stdlib `csv`
-- Deploy-size `pyarrow` stub so Cursor publish stays under the 500 MB limit
+- Deploy-size stub at `vendor/pyarrow` (package name `pyarrow`) so Cursor/`uv` publish stays under the 500 MB limit
 
 ## Project structure
 
@@ -62,6 +62,8 @@ streamlit run streamlit_app.py
 Open the local URL shown by the server (usually `http://localhost:8501`).
 
 Deployment note: `app.py` exports Streamlit’s official ASGI `app = st.App("streamlit_app.py")`. The UI and features remain in `streamlit_app.py`.
+
+Public-host secrets: set `GROQ_API_KEY`, `QUIZ_ANSWER_BANK`, `APP_ACCESS_CODE`, and `CAPTCHA_PEPPER` (required for the Groq AI path across workers). Rate limits and Groq budgets are process-local unless the host shares persistent storage.
 
 ## Streamlit Community Cloud deployment
 

@@ -12,9 +12,9 @@ from groq import Groq
 from rag.chunking import notes_to_chunks
 from rag.loader import load_notes
 from rag.retrieval import TFIDFRetriever
-from utils.captcha import verify_math_captcha
+from utils.captcha import captcha_ready_for_groq, verify_math_captcha
 from utils.prompts import SYSTEM_PROMPT, build_user_prompt
-from utils.rate_limit import GROQ_RATE_LIMITER
+from utils.rate_limit import CAPTCHA_FAIL_RATE_LIMITER, GROQ_RATE_LIMITER
 from utils.validation import is_homework_request, validate_chat_question
 
 logger = logging.getLogger(__name__)
@@ -211,6 +211,23 @@ class TutorService:
 
         sources = self._sources_from_chunks(retrieval.chunks if retrieval.is_relevant else [])
 
+        # Off-syllabus homework/assignment prompts must not burn Groq budget.
+        # Keep integrity coaching via the local notes fallback only.
+        if integrity_flag and not retrieval.is_relevant:
+            return {
+                "answer": self._notes_fallback(
+                    question,
+                    profile,
+                    [],
+                    integrity_flag=True,
+                ),
+                "sources": [],
+                "is_relevant": False,
+                "integrity_flag": True,
+                "retrieval_scores": retrieval.scores,
+                "mode": "notes_fallback",
+            }
+
         client = self._client_or_none()
         if client is None:
             return {
@@ -227,11 +244,30 @@ class TutorService:
                 "mode": "notes_fallback",
             }
 
-        # Paid Groq path requires a fresh CAPTCHA + rate/budget checks.
-        if not verify_math_captcha(captcha_token or "", captcha_answer or ""):
+        if not captcha_ready_for_groq():
             return {
                 "answer": (
-                    "Please solve the security check correctly before asking the AI tutor."
+                    "AI tutoring is temporarily unavailable because CAPTCHA_PEPPER "
+                    "is not configured on the host. Please ask your teacher to set it."
+                ),
+                "sources": sources,
+                "is_relevant": retrieval.is_relevant,
+                "integrity_flag": integrity_flag,
+                "retrieval_scores": retrieval.scores,
+                "mode": "captcha_misconfigured",
+            }
+
+        # Paid Groq path requires a fresh CAPTCHA + rate/budget checks.
+        if not verify_math_captcha(captcha_token or "", captcha_answer or ""):
+            fail_allowed, fail_message = CAPTCHA_FAIL_RATE_LIMITER.allow(
+                ip_key=client_ip or "unknown-ip",
+                session_key=client_key or "anonymous",
+            )
+            return {
+                "answer": (
+                    fail_message
+                    if not fail_allowed
+                    else "Please solve the security check correctly before asking the AI tutor."
                 ),
                 "sources": sources,
                 "is_relevant": retrieval.is_relevant,

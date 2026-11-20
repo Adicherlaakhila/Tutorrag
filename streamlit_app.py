@@ -395,7 +395,20 @@ def render_quiz() -> None:
         if not allowed:
             st.warning(limit_message or "Quiz submit limit reached. Please try later.")
         else:
-            st.session_state.quiz_result = grade_quiz(questions, answers)
+            graded = grade_quiz(questions, answers)
+            # Do not keep correct letters/explanations in session (reduces scrape risk).
+            st.session_state.quiz_result = {
+                "score": graded["score"],
+                "total": graded["total"],
+                "details": [
+                    {
+                        "question_id": item["question_id"],
+                        "is_correct": item["is_correct"],
+                        "selected": item["selected"],
+                    }
+                    for item in graded["details"]
+                ],
+            }
             st.session_state.quiz_submitted = True
 
     if st.session_state.quiz_submitted and st.session_state.quiz_result:
@@ -407,8 +420,10 @@ def render_quiz() -> None:
             else:
                 selected = item["selected"] or "No answer"
                 st.markdown(f"❌ **Q{index}** – Incorrect (Your answer: {selected})")
-                # Explain without publishing the correct option letter (reduces scraping).
-                st.markdown(f"Hint/explanation: {item['explanation']}")
+                # Generic coaching only — avoid answer-key explanations that map to options.
+                st.markdown(
+                    "Review this topic in your course notes and try a similar question again."
+                )
 
 
 def apply_styles() -> None:

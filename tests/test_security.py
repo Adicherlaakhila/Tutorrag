@@ -107,12 +107,40 @@ def test_min_interval_between_requests():
 
 def test_math_captcha_roundtrip():
     challenge = issue_math_captcha()
-    # Extract numbers from "What is a + b?"
-    parts = challenge.prompt.replace("?", "").split()
+    # Extract numbers from "What is a × b?"
+    parts = challenge.prompt.replace("?", "").replace("×", " ").split()
     a = int(parts[2])
-    b = int(parts[4])
-    assert verify_math_captcha(challenge.token, str(a + b)) is True
+    b = int(parts[3])
+    assert verify_math_captcha(challenge.token, str(a * b)) is True
     assert verify_math_captcha(challenge.token, "0") is False
+
+
+def test_budget_not_consumed_when_rate_limited(tmp_path, monkeypatch):
+    monkeypatch.setenv("TUTORRAG_USAGE_PATH", str(tmp_path / "usage.json"))
+    from utils.usage_budget import UsageBudget, BudgetConfig
+    from utils.rate_limit import RateLimiter, RateLimitConfig
+    import utils.rate_limit as rl
+
+    budget = UsageBudget(BudgetConfig(daily_limit=40, monthly_limit=400))
+    monkeypatch.setattr(rl, "GROQ_USAGE_BUDGET", budget)
+    limiter = RateLimiter(
+        RateLimitConfig(
+            per_ip_max_requests=1,
+            per_ip_window_seconds=600,
+            per_session_max_requests=1,
+            per_session_window_seconds=600,
+            min_interval_seconds=0,
+            global_max_requests=100,
+            global_window_seconds=600,
+        )
+    )
+    assert limiter.allow(ip_key="1.2.3.4", session_key="s", enforce_budget=True)[0]
+    blocked, _ = limiter.allow(ip_key="1.2.3.4", session_key="s", enforce_budget=True)
+    assert blocked is False
+    # Only the first allowed call should have incremented budget.
+    data = budget._load()
+    day = next(iter(data["days"].values()))
+    assert int(day.get("1.2.3.4", 0)) == 1
 
 
 def test_usage_budget_daily_cap(tmp_path, monkeypatch):
@@ -129,3 +157,30 @@ def test_access_code_hmac(monkeypatch):
     monkeypatch.setenv("APP_ACCESS_CODE", "class-secret")
     assert verify_access_code("class-secret") is True
     assert verify_access_code("wrong") is False
+
+
+def test_off_syllabus_homework_skips_groq(monkeypatch):
+    from rag.tutor import TutorService
+
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test_not_real")
+    monkeypatch.setenv("CAPTCHA_PEPPER", "pepper-for-tests")
+    tutor = TutorService()
+    # Force "client present" without calling real Groq.
+    tutor._client = object()  # type: ignore[assignment]
+    result = tutor.answer(
+        "Write my homework essay about human digestion for submission tonight.",
+        {
+            "nickname": "Alex",
+            "level": "Beginner",
+            "subject": "Class 10 Science",
+            "topic": "Light – Reflection and Refraction",
+            "style": "Simple Explanation",
+        },
+        client_key="sec-hw",
+        authenticated=True,
+        captcha_token="x",
+        captcha_answer="1",
+    )
+    assert result["integrity_flag"] is True
+    assert result["mode"] == "notes_fallback"
+    assert result["is_relevant"] is False
