@@ -136,3 +136,53 @@ class QuizRateLimiter(RateLimiter):
 
 
 QUIZ_RATE_LIMITER = QuizRateLimiter()
+
+
+class QuizSubmitRateLimiter(RateLimiter):
+    def __init__(self) -> None:
+        super().__init__(
+            RateLimitConfig(
+                per_ip_max_requests=8,
+                per_ip_window_seconds=86400,
+                per_session_max_requests=4,
+                per_session_window_seconds=86400,
+                min_interval_seconds=5.0,
+                global_max_requests=200,
+                global_window_seconds=86400,
+            )
+        )
+
+    def allow(self, *, ip_key: str, session_key: str, enforce_budget: bool = False):
+        return super().allow(
+            ip_key=ip_key,
+            session_key=session_key,
+            enforce_budget=False,
+        )
+
+
+QUIZ_SUBMIT_RATE_LIMITER = QuizSubmitRateLimiter()
+
+
+class AccessCodeRateLimiter(RateLimiter):
+    def __init__(self) -> None:
+        super().__init__(
+            RateLimitConfig(
+                per_ip_max_requests=8,
+                per_ip_window_seconds=3600,
+                per_session_max_requests=8,
+                per_session_window_seconds=3600,
+                min_interval_seconds=2.0,
+                global_max_requests=200,
+                global_window_seconds=3600,
+            )
+        )
+
+    def allow(self, *, ip_key: str, session_key: str, enforce_budget: bool = False):
+        return super().allow(
+            ip_key=ip_key,
+            session_key=session_key,
+            enforce_budget=False,
+        )
+
+
+ACCESS_CODE_RATE_LIMITER = AccessCodeRateLimiter()

@@ -18,7 +18,11 @@ from utils.quiz import (
     load_question_bank,
     select_quiz_questions,
 )
-from utils.rate_limit import QUIZ_RATE_LIMITER
+from utils.rate_limit import (
+    ACCESS_CODE_RATE_LIMITER,
+    QUIZ_RATE_LIMITER,
+    QUIZ_SUBMIT_RATE_LIMITER,
+)
 from utils.validation import (
     DEFAULT_SUBJECT,
     DEFAULT_TOPIC,
@@ -108,6 +112,13 @@ def render_access_gate() -> bool:
         code = st.text_input("Class access code *", type="password")
         submitted = st.form_submit_button("Unlock", use_container_width=True)
     if submitted:
+        allowed, limit_message = ACCESS_CODE_RATE_LIMITER.allow(
+            ip_key=resolve_client_bucket(),
+            session_key=st.session_state.client_key,
+        )
+        if not allowed:
+            st.error(limit_message or "Too many unlock attempts. Please wait.")
+            return False
         if verify_access_code(code):
             st.session_state.authenticated = True
             st.success("Access unlocked for this session.")
@@ -377,8 +388,15 @@ def render_quiz() -> None:
         submitted = st.form_submit_button("Submit quiz", use_container_width=True)
 
     if submitted:
-        st.session_state.quiz_result = grade_quiz(questions, answers)
-        st.session_state.quiz_submitted = True
+        allowed, limit_message = QUIZ_SUBMIT_RATE_LIMITER.allow(
+            ip_key=resolve_client_bucket(),
+            session_key=st.session_state.client_key,
+        )
+        if not allowed:
+            st.warning(limit_message or "Quiz submit limit reached. Please try later.")
+        else:
+            st.session_state.quiz_result = grade_quiz(questions, answers)
+            st.session_state.quiz_submitted = True
 
     if st.session_state.quiz_submitted and st.session_state.quiz_result:
         result = st.session_state.quiz_result
